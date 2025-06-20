@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<!-- qad mit ByLKI 20250619 -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interaktives Vigenère-Quadrat (Klickbar)</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center; /* Zentriert den Inhalt horizontal */
+        }
+        h1, h2, h3 {
+            color: #0056b3;
+            text-align: center;
+        }
+        p {
+            margin-bottom: 10px;
+            max-width: 800px;
+            text-align: center;
+        }
+
+        /* --- Interactive Section Styling --- */
+        .interactive-vigenere {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            width: fit-content; /* Passt die Breite an den Inhalt an */
+            text-align: center;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #eaf6ff;
+            border: 1px solid #cceeff;
+            border-radius: 5px;
+            font-size: 1.3em;
+            text-align: center;
+        }
+        #geheimtext-result {
+            color: #5cb85c; /* Green for clarity */
+            font-weight: bold;
+        }
+
+        /* --- Vigenere Square Table Styling --- */
+        #vigenere-square-interactive-table {
+            border-collapse: collapse;
+            margin: 20px auto; /* Zentriert die Tabelle */
+            background-color: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            font-size: 0.9em;
+            user-select: none; /* Verhindert ungewolltes Textmarkieren bei Klicks */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+        #vigenere-square-interactive-table th,
+        #vigenere-square-interactive-table td {
+            border: 1px solid #ddd;
+            padding: 5px;
+            text-align: center;
+            width: 25px; /* Fixed width for better alignment */
+            height: 25px; /* Fixed height */
+            text-transform: uppercase;
+            box-sizing: border-box;
+            transition: background-color 0.15s ease-in-out, transform 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+        }
+        #vigenere-square-interactive-table thead th {
+            background-color: #e9e9e9;
+            font-weight: bold;
+            cursor: pointer; /* Zeigt an, dass es klickbar ist */
+        }
+        #vigenere-square-interactive-table tbody th {
+            background-color: #e9e9e9;
+            font-weight: bold;
+            cursor: pointer; /* Zeigt an, dass es klickbar ist */
+        }
+        #vigenere-square-interactive-table thead th:first-child {
+            cursor: default; /* Ecke ist nicht klickbar */
+        }
+
+        /* --- Highlighting for interactive table --- */
+        #vigenere-square-interactive-table .highlight-row {
+            background-color: #e0e0ff; /* Light blue for selected row */
+        }
+        #vigenere-square-interactive-table .highlight-col {
+            background-color: #e0e0ff; /* Light blue for selected column */
+        }
+        #vigenere-square-interactive-table .highlight-cell {
+            background-color: #a0a0ff; /* Stronger blue for intersection */
+            font-weight: bold;
+            transform: scale(1.1); /* Simple "animation" */
+            box-shadow: 0 0 10px rgba(0, 0, 255, 0.3); /* Add a subtle glow */
+            z-index: 1; /* Bring to front for overlapping highlights */
+            position: relative; /* Needed for z-index */
+        }
+        #vigenere-square-interactive-table .highlight-header {
+            background-color: #c0c0ff; /* Slightly different blue for headers */
+            font-weight: bold;
+            transform: scale(1.05); /* Slightly bigger for selected header */
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Interaktives Vigenère-Quadrat</h1>
+    <p>
+        Klicke auf einen Buchstaben in der <strong>obersten Zeile</strong> (Klartext) oder in der <strong>linken Spalte</strong> (Schlüsselwort).
+        Das Quadrat zeigt dir visuell, wie die Verschlüsselung funktioniert und welchen Geheimtext-Buchstaben das ergibt.
+    </p>
+
+    <div class="interactive-vigenere">
+        <div class="result">
+            Klartext: <span id="klartext-display">A</span> &nbsp;&nbsp;&nbsp;
+            Schlüssel: <span id="schluessel-display">A</span> &nbsp;&nbsp;&nbsp;
+            &rarr; Geheimtext: <span id="geheimtext-result">A</span>
+        </div>
+
+        <div id="vigenere-square-container-interactive">
+            <!-- Vigenere Square Table will be generated here by JS -->
+        </div>
+    </div>
+
+
+    <script>
+        // Alphabet als Konstante für einfache Umwandlungen
+        const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+        // Aktuell ausgewählte Indizes (0-25) für Klartext und Schlüssel
+        let currentKlartextIndex = 0;
+        let currentSchluesselIndex = 0;
+
+        // Hilfsfunktion: Index (0-25) zu Buchstabe (A-Z)
+        function getLetterFromIndex(index) {
+            return ALPHABET[index];
+        }
+
+        // Hilfsfunktion: Buchstabe (A-Z) zu Index (0-25)
+        function getIndexFromLetter(letter) {
+            return ALPHABET.indexOf(letter.toUpperCase());
+        }
+
+        // Funktion zum Generieren der HTML-Tabelle des Vigenère-Quadrats
+        function generateVigenereSquareTable(tableId) {
+            let tableHtml = `<table id="${tableId}">`;
+            tableHtml += '<thead><tr><th></th>'; // Leere Ecke oben links
+            for (let i = 0; i < 26; i++) {
+                tableHtml += `<th class="klartext-header" data-index="${i}">${getLetterFromIndex(i)}</th>`; // Obere Klartext-Achse, klickbar
+            }
+            tableHtml += '</tr></thead><tbody>';
+
+            for (let row = 0; row < 26; row++) {
+                tableHtml += `<tr><th class="schluessel-header" data-index="${row}">${getLetterFromIndex(row)}</th>`; // Linke Schlüssel-Achse, klickbar
+                for (let col = 0; col < 26; col++) {
+                    const encryptedIndex = (row + col) % 26; // Die Vigenère-Berechnung
+                    tableHtml += `<td data-row="${row}" data-col="${col}">${getLetterFromIndex(encryptedIndex)}</td>`;
+                }
+                tableHtml += '</tr>';
+            }
+            tableHtml += '</tbody></table>';
+            return tableHtml;
+        }
+
+        // Funktion zum Aktualisieren der Anzeige und Hervorhebung
+        function updateVigenereDisplay() {
+            const klartextDisplay = document.getElementById('klartext-display');
+            const schluesselDisplay = document.getElementById('schluessel-display');
+            const geheimtextResult = document.getElementById('geheimtext-result');
+            const vigenereTable = document.getElementById('vigenere-square-interactive-table');
+
+            if (!klartextDisplay || !schluesselDisplay || !geheimtextResult || !vigenereTable) {
+                console.error("Ein oder mehrere Elemente für die Interaktion wurden nicht gefunden.");
+                return;
+            }
+
+            const klartextLetter = getLetterFromIndex(currentKlartextIndex);
+            const schluesselLetter = getLetterFromIndex(currentSchluesselIndex);
+
+            const geheimtextIndex = (currentKlartextIndex + currentSchluesselIndex) % 26;
+            const geheimtextLetter = getLetterFromIndex(geheimtextIndex);
+
+            // Anzeigen der ausgewählten Buchstaben und des Ergebnisses
+            klartextDisplay.textContent = klartextLetter;
+            schluesselDisplay.textContent = schluesselLetter;
+            geheimtextResult.textContent = geheimtextLetter;
+
+            // Vorherige Hervorhebungen entfernen
+            vigenereTable.querySelectorAll('.highlight-row, .highlight-col, .highlight-cell, .highlight-header')
+                         .forEach(el => el.classList.remove('highlight-row', 'highlight-col', 'highlight-cell', 'highlight-header'));
+
+            // Spaltenüberschrift (Klartext) hervorheben
+            const klartextHeader = vigenereTable.querySelector(`th.klartext-header[data-index="${currentKlartextIndex}"]`);
+            if (klartextHeader) {
+                klartextHeader.classList.add('highlight-header');
+            }
+
+            // Zeilenüberschrift (Schlüssel) hervorheben
+            const schluesselHeader = vigenereTable.querySelector(`th.schluessel-header[data-index="${currentSchluesselIndex}"]`);
+            if (schluesselHeader) {
+                schluesselHeader.classList.add('highlight-header');
+            }
+
+            // Zeile hervorheben (alle Zellen in der ausgewählten Zeile)
+            const selectedRowCells = vigenereTable.querySelectorAll(`td[data-row="${currentSchluesselIndex}"]`);
+            selectedRowCells.forEach(cell => cell.classList.add('highlight-row'));
+
+            // Spalte hervorheben (alle Zellen in der ausgewählten Spalte)
+            const selectedColCells = vigenereTable.querySelectorAll(`td[data-col="${currentKlartextIndex}"]`);
+            selectedColCells.forEach(cell => cell.classList.add('highlight-col'));
+
+            // Schnittpunkt-Zelle hervorheben (kommt nach Zeilen- und Spaltenhervorhebung, damit sie überlagert)
+            const intersectionCell = vigenereTable.querySelector(`td[data-row="${currentSchluesselIndex}"][data-col="${currentKlartextIndex}"]`);
+            if (intersectionCell) {
+                intersectionCell.classList.add('highlight-cell');
+            }
+        }
+
+        // Initialisierung beim Laden der Seite
+        document.addEventListener('DOMContentLoaded', () => {
+            // Interaktive Tabelle generieren
+            const interactiveTableContainer = document.getElementById('vigenere-square-container-interactive');
+            if (interactiveTableContainer) {
+                interactiveTableContainer.innerHTML = generateVigenereSquareTable('vigenere-square-interactive-table');
+            }
+
+            // Event Listener für die klickbaren Header hinzufügen
+            const vigenereTable = document.getElementById('vigenere-square-interactive-table');
+
+            if (vigenereTable) {
+                // Event Listener für Klartext-Header (oberste Zeile)
+                vigenereTable.querySelectorAll('th.klartext-header').forEach(header => {
+                    header.addEventListener('click', function() {
+                        currentKlartextIndex = parseInt(this.dataset.index);
+                        updateVigenereDisplay();
+                    });
+                });
+
+                // Event Listener für Schlüssel-Header (linke Spalte)
+                vigenereTable.querySelectorAll('th.schluessel-header').forEach(header => {
+                    header.addEventListener('click', function() {
+                        currentSchluesselIndex = parseInt(this.dataset.index);
+                        updateVigenereDisplay();
+                    });
+                });
+
+                // Erste Aktualisierung beim Laden der Seite, um den Startzustand zu zeigen (A + A = A)
+                updateVigenereDisplay();
+            }
+        });
+    </script>
+
+</body>
+</html>
